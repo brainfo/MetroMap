@@ -1,0 +1,5 @@
+julia 0.5
+JuMP 0.20.0
+MathOptInterface 0.9.5
+GLPKMathProgInterface 0.4.4
+DataStructures 0.17.3
