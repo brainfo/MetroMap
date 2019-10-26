@@ -7,9 +7,10 @@ function preceding_direction(dir::Direction)
         prec_dir
     end
 end
-
+## A macro is a way of generating a new output expression, given an unevaluated input expression.
+## Julia first parses and evaluates the macro, and the processed code produced by the macro is eventually evaluated like an ordinary expression.
 macro check_pairs(vals, a, b, c, d)
-:((round(getvalue($vals[$a]), 2) - round(getvalue($vals[$c]), 2) <= -d_min &&
+    return :((round(getvalue($vals[$a]), 2) - round(getvalue($vals[$c]), 2) <= -d_min &&
     round(getvalue($vals[$a]), 2) - round(getvalue($vals[$d]), 2) <= -d_min &&
     round(getvalue($vals[$b]), 2) - round(getvalue($vals[$c]), 2) <= -d_min &&
     round(getvalue($vals[$b]), 2) - round(getvalue($vals[$d]), 2) <= -d_min))
@@ -24,15 +25,15 @@ function build_model!(model::JuMP.Model, transit_map::InputGraph,
                         )
 
     # model parameters
-    const station_list = stations(transit_map)
-    const edge_list = edges(transit_map)
-    const N = nstations(transit_map)
-    const M = nedges(transit_map)
-    const d_min = 1
+    station_list = stations(transit_map)
+    edge_list = edges(transit_map)
+    N = nstations(transit_map)
+    M = nedges(transit_map)
+    d_min = 1
     # max canvas should be as small as possible for bigM formulation
-    const max_canvas = sum(map(x -> x.min_length, edge_list)) * 2
-    const get_degree = x -> out_degree(transit_map, x)
-    const max_degree = maximum(map(get_degree, station_list))
+    max_canvas = sum(map(x -> x.min_length, edge_list)) * 2
+    get_degree = x -> out_degree(transit_map, x)
+    max_degree = maximum(map(get_degree, station_list))
 
     # now we need a mapping from a station id to a number from 1:N
     # the same is needed is needed for edges
@@ -51,26 +52,26 @@ function build_model!(model::JuMP.Model, transit_map::InputGraph,
 
     function get_neighbors(station)
         # try only the out-degree
-        const neighbors_from = map(x -> x.to.id, filter(x -> x.from == station && !x.is_single_label_edge, edge_list))
+        neighbors_from = map(x -> x.to.id, filter(x -> x.from == station && !x.is_single_label_edge, edge_list))
         setdiff(unique(neighbors_from), [station.id])
     end
 
     # TODO: Is this really correct?
     function sort_node_by_direction(root_node)
         function (target_node)
-            const t1 = map(x -> x.direction, filter(x -> x.from.id == root_node && x.to.id == target_node, edge_list))
+            t1 = map(x -> x.direction, filter(x -> x.from.id == root_node && x.to.id == target_node, edge_list))
             first(t1)
         end
     end
 
     # We need a list of incident edges for the bend costs
-    const indicent_edge_list = incident_edges(transit_map)
-    const n_incident_edges = length(indicent_edge_list)
+    indicent_edge_list = incident_edges(transit_map)
+    n_incident_edges = length(indicent_edge_list)
 
     # also for the planarity constraints we need a list of
     # non_incident_edges edges
-    const non_indicent_edge_list = non_incident_edges(transit_map, faces)
-    const n_non_incident_edges = length(non_indicent_edge_list)
+    non_indicent_edge_list = non_incident_edges(transit_map, faces)
+    n_non_incident_edges = length(non_indicent_edge_list)
 
     # TODO: Only edge variables for non dummy edges / nodes
     # where sensible
@@ -92,8 +93,8 @@ function build_model!(model::JuMP.Model, transit_map::InputGraph,
     # the direction variables
     # only add those that are really needed
     function is_edge(i, j)
-        const u = station_list[i]
-        const v = station_list[j]
+        u = station_list[i]
+        v = station_list[j]
         length(filter(x -> x.from == u && x.to == v || x.to == u && x.from == v, edge_list)) > 0
     end
     @variable(model, 0 <= d[i = 1:N, j = 1:N; is_edge(i, j)] <= 7)
@@ -126,24 +127,24 @@ function build_model!(model::JuMP.Model, transit_map::InputGraph,
         # We need to ensure that only one sector is chosen per edge
         @constraint(model, sum(a[i, s] for s = 1:3) == 1)
 
-        const edge = edge_list[i]
-        const min_length = edge.min_length
-        const orig_dir = edge.direction
-        const u = get_station_index(edge.from.id)
-        const v = get_station_index(edge.to.id)
-        const is_single_label_edge = edge.is_single_label_edge
-        const is_standard_edge = !is_single_label_edge
+        edge = edge_list[i]
+        min_length = edge.min_length
+        orig_dir = edge.direction
+        u = get_station_index(edge.from.id)
+        v = get_station_index(edge.to.id)
+        is_single_label_edge = edge.is_single_label_edge
+        is_standard_edge = !is_single_label_edge
 
         # Ensure that the direction variable has the correct value
         # This block also defines the d variables
         # as I did not figure out how to create a selective group of variables
-        const prec_dir = preceding_direction(orig_dir)
-        const succ_dir = (orig_dir + 1) % 8
-        const orig_dir_rev = (orig_dir + 4) % 8
-        const prec_dir_rev = preceding_direction(orig_dir_rev)
-        const succ_dir_rev = (orig_dir_rev + 1) % 8
-        const dir = [prec_dir, orig_dir, succ_dir]
-        const dir_rev = [prec_dir_rev, orig_dir_rev, succ_dir_rev]
+        prec_dir = preceding_direction(orig_dir)
+        succ_dir = (orig_dir + 1) % 8
+        orig_dir_rev = (orig_dir + 4) % 8
+        prec_dir_rev = preceding_direction(orig_dir_rev)
+        succ_dir_rev = (orig_dir_rev + 1) % 8
+        dir = [prec_dir, orig_dir, succ_dir]
+        dir_rev = [prec_dir_rev, orig_dir_rev, succ_dir_rev]
         if is_standard_edge
             @constraint(model, d[u, v] == prec_dir * a[i, 1] +
                 orig_dir * a[i, 2] + succ_dir * a[i, 3])
@@ -184,7 +185,7 @@ function build_model!(model::JuMP.Model, transit_map::InputGraph,
             @constraint(model, d[u, v] == sum(d * ae[i, d] for d = allowed_dirs))
         end
 
-        const bM = max_canvas
+        bM = max_canvas
         # Todo: Extract this into a macro
         if orig_dir == 0
             # direction == 7
@@ -315,18 +316,18 @@ function build_model!(model::JuMP.Model, transit_map::InputGraph,
     for i in 1:N
         #continue
         # we also need to add the circular order constraints
-        const station = station_list[i]
-        const station_id = station.id
-        const deg = out_degree(transit_map, station)
-        const neighbors = get_neighbors(station)
+        station = station_list[i]
+        station_id = station.id
+        deg = out_degree(transit_map, station)
+        neighbors = get_neighbors(station)
         if deg >= 2 && length(neighbors) >= 2
-            const neighbor_indexes = map(get_station_index,
+            neighbor_indexes = map(get_station_index,
                                     sort(neighbors, by = sort_node_by_direction(station_id)))
             @constraint(model, sum(b[i, j] for j = 1:length(neighbors)) == 1)
 
             # add circle constraints
             for j in 1:length(neighbor_indexes)
-                const jIdx = neighbor_indexes[j]
+                jIdx = neighbor_indexes[j]
                 if j + 1 <= length(neighbor_indexes)
                     jIdxP = neighbor_indexes[j + 1]
                 else
@@ -341,17 +342,17 @@ function build_model!(model::JuMP.Model, transit_map::InputGraph,
     if planarity_constraints == 1 # with callback
         # last step is to register a callback to preserve planarity
         function check_edge_spacing(cb)
-            const bM2 = max_canvas + d_min
+            bM2 = max_canvas + d_min
 
             #println("Enter callback")
             for i in 1:n_non_incident_edges
-                const t = non_indicent_edge_list[i]
-                const e1 = t[1]
-                const e2 = t[2]
-                const u1 = get_station_index(e1.from.id)
-                const v1 = get_station_index(e1.to.id)
-                const u2 = get_station_index(e2.from.id)
-                const v2 = get_station_index(e2.to.id)
+                t = non_indicent_edge_list[i]
+                e1 = t[1]
+                e2 = t[2]
+                u1 = get_station_index(e1.from.id)
+                v1 = get_station_index(e1.to.id)
+                u2 = get_station_index(e2.from.id)
+                v2 = get_station_index(e2.to.id)
                 if !(@check_pairs(x, u1, v1, u2, v2) ||
                     @check_pairs(z1, u1, v1, u2, v2) ||
                     @check_pairs(y, u1, v1, u2, v2) ||
@@ -363,71 +364,71 @@ function build_model!(model::JuMP.Model, transit_map::InputGraph,
                     @check_pairs(y, u2, v2, u1, v1))
                     #println("Add constraints for edge", i)
                     # now we need to add a constraint that prevents this
-                    @lazyconstraint(cb, sum(g[i, d] for d = 0:7) >= 1)
+                    @constraint(cb, sum(g[i, d] for d = 0:7) >= 1)
 
                     # direction 0
-                    @lazyconstraint(cb, x[u1] - x[u2] <= bM2 * (1 - g[i, 0]) - d_min)
-                    @lazyconstraint(cb, x[u1] - x[v2] <= bM2 * (1 - g[i, 0]) - d_min)
-                    @lazyconstraint(cb, x[v1] - x[u2] <= bM2 * (1 - g[i, 0]) - d_min)
-                    @lazyconstraint(cb, x[v1] - x[v2] <= bM2 * (1 - g[i, 0]) - d_min)
+                    @constraint(cb, x[u1] - x[u2] <= bM2 * (1 - g[i, 0]) - d_min)
+                    @constraint(cb, x[u1] - x[v2] <= bM2 * (1 - g[i, 0]) - d_min)
+                    @constraint(cb, x[v1] - x[u2] <= bM2 * (1 - g[i, 0]) - d_min)
+                    @constraint(cb, x[v1] - x[v2] <= bM2 * (1 - g[i, 0]) - d_min)
 
                     # direction 1
-                    @lazyconstraint(cb, z1[u1] - z1[u2] <= bM2 * (1 - g[i, 1]) - d_min)
-                    @lazyconstraint(cb, z1[u1] - z1[v2] <= bM2 * (1 - g[i, 1]) - d_min)
-                    @lazyconstraint(cb, z1[v1] - z1[u2] <= bM2 * (1 - g[i, 1]) - d_min)
-                    @lazyconstraint(cb, z1[v1] - z1[v2] <= bM2 * (1 - g[i, 1]) - d_min)
+                    @constraint(cb, z1[u1] - z1[u2] <= bM2 * (1 - g[i, 1]) - d_min)
+                    @constraint(cb, z1[u1] - z1[v2] <= bM2 * (1 - g[i, 1]) - d_min)
+                    @constraint(cb, z1[v1] - z1[u2] <= bM2 * (1 - g[i, 1]) - d_min)
+                    @constraint(cb, z1[v1] - z1[v2] <= bM2 * (1 - g[i, 1]) - d_min)
 
                     # direction 2
-                    @lazyconstraint(cb, y[u1] - y[u2] <= bM2 * (1 - g[i, 2]) - d_min)
-                    @lazyconstraint(cb, y[u1] - y[v2] <= bM2 * (1 - g[i, 2]) - d_min)
-                    @lazyconstraint(cb, y[v1] - y[u2] <= bM2 * (1 - g[i, 2]) - d_min)
-                    @lazyconstraint(cb, y[v1] - y[v2] <= bM2 * (1 - g[i, 2]) - d_min)
+                    @constraint(cb, y[u1] - y[u2] <= bM2 * (1 - g[i, 2]) - d_min)
+                    @constraint(cb, y[u1] - y[v2] <= bM2 * (1 - g[i, 2]) - d_min)
+                    @constraint(cb, y[v1] - y[u2] <= bM2 * (1 - g[i, 2]) - d_min)
+                    @constraint(cb, y[v1] - y[v2] <= bM2 * (1 - g[i, 2]) - d_min)
 
                     # direction 3
-                    @lazyconstraint(cb, z2[u2] - z2[u1] <= bM2 * (1 - g[i, 3]) - d_min)
-                    @lazyconstraint(cb, z2[u2] - z2[v1] <= bM2 * (1 - g[i, 3]) - d_min)
-                    @lazyconstraint(cb, z2[v2] - z2[u1] <= bM2 * (1 - g[i, 3]) - d_min)
-                    @lazyconstraint(cb, z2[v2] - z2[v1] <= bM2 * (1 - g[i, 3]) - d_min)
+                    @constraint(cb, z2[u2] - z2[u1] <= bM2 * (1 - g[i, 3]) - d_min)
+                    @constraint(cb, z2[u2] - z2[v1] <= bM2 * (1 - g[i, 3]) - d_min)
+                    @constraint(cb, z2[v2] - z2[u1] <= bM2 * (1 - g[i, 3]) - d_min)
+                    @constraint(cb, z2[v2] - z2[v1] <= bM2 * (1 - g[i, 3]) - d_min)
 
                     # direction 4
-                    @lazyconstraint(cb, x[u2] - x[u1] <= bM2 * (1 - g[i, 4]) - d_min)
-                    @lazyconstraint(cb, x[u2] - x[v1] <= bM2 * (1 - g[i, 4]) - d_min)
-                    @lazyconstraint(cb, x[v2] - x[u1] <= bM2 * (1 - g[i, 4]) - d_min)
-                    @lazyconstraint(cb, x[v2] - x[v1] <= bM2 * (1 - g[i, 4]) - d_min)
+                    @constraint(cb, x[u2] - x[u1] <= bM2 * (1 - g[i, 4]) - d_min)
+                    @constraint(cb, x[u2] - x[v1] <= bM2 * (1 - g[i, 4]) - d_min)
+                    @constraint(cb, x[v2] - x[u1] <= bM2 * (1 - g[i, 4]) - d_min)
+                    @constraint(cb, x[v2] - x[v1] <= bM2 * (1 - g[i, 4]) - d_min)
 
                     # direction 5
-                    @lazyconstraint(cb, z1[u2] - z1[u1] <= bM2 * (1 - g[i, 5]) - d_min)
-                    @lazyconstraint(cb, z1[u2] - z1[v1] <= bM2 * (1 - g[i, 5]) - d_min)
-                    @lazyconstraint(cb, z1[v2] - z1[u1] <= bM2 * (1 - g[i, 5]) - d_min)
-                    @lazyconstraint(cb, z1[v2] - z1[v1] <= bM2 * (1 - g[i, 5]) - d_min)
+                    @constraint(cb, z1[u2] - z1[u1] <= bM2 * (1 - g[i, 5]) - d_min)
+                    @constraint(cb, z1[u2] - z1[v1] <= bM2 * (1 - g[i, 5]) - d_min)
+                    @constraint(cb, z1[v2] - z1[u1] <= bM2 * (1 - g[i, 5]) - d_min)
+                    @constraint(cb, z1[v2] - z1[v1] <= bM2 * (1 - g[i, 5]) - d_min)
 
                     # direction 6
-                    @lazyconstraint(cb, y[u2] - y[u1] <= bM2 * (1 - g[i, 6]) - d_min)
-                    @lazyconstraint(cb, y[u2] - y[v1] <= bM2 * (1 - g[i, 6]) - d_min)
-                    @lazyconstraint(cb, y[v2] - y[u1] <= bM2 * (1 - g[i, 6]) - d_min)
-                    @lazyconstraint(cb, y[v2] - y[v1] <= bM2 * (1 - g[i, 6]) - d_min)
+                    @constraint(cb, y[u2] - y[u1] <= bM2 * (1 - g[i, 6]) - d_min)
+                    @constraint(cb, y[u2] - y[v1] <= bM2 * (1 - g[i, 6]) - d_min)
+                    @constraint(cb, y[v2] - y[u1] <= bM2 * (1 - g[i, 6]) - d_min)
+                    @constraint(cb, y[v2] - y[v1] <= bM2 * (1 - g[i, 6]) - d_min)
 
                     # direction 7
-                    @lazyconstraint(cb, z2[u1] - z2[u2] <= bM2 * (1 - g[i, 7]) - d_min)
-                    @lazyconstraint(cb, z2[u1] - z2[v2] <= bM2 * (1 - g[i, 7]) - d_min)
-                    @lazyconstraint(cb, z2[v1] - z2[u2] <= bM2 * (1 - g[i, 7]) - d_min)
-                    @lazyconstraint(cb, z2[v1] - z2[v2] <= bM2 * (1 - g[i, 7]) - d_min)
+                    @constraint(cb, z2[u1] - z2[u2] <= bM2 * (1 - g[i, 7]) - d_min)
+                    @constraint(cb, z2[u1] - z2[v2] <= bM2 * (1 - g[i, 7]) - d_min)
+                    @constraint(cb, z2[v1] - z2[u2] <= bM2 * (1 - g[i, 7]) - d_min)
+                    @constraint(cb, z2[v1] - z2[v2] <= bM2 * (1 - g[i, 7]) - d_min)
                 end
             end
         end
         addlazycallback(model, check_edge_spacing)
     elseif planarity_constraints == 2 # no callbacks
-        const bM2 = max_canvas + d_min
+        bM2 = max_canvas + d_min
 
         #println("Enter callback")
         for i in 1:n_non_incident_edges
-            const t = non_indicent_edge_list[i]
-            const e1 = t[1]
-            const e2 = t[2]
-            const u1 = get_station_index(e1.from.id)
-            const v1 = get_station_index(e1.to.id)
-            const u2 = get_station_index(e2.from.id)
-            const v2 = get_station_index(e2.to.id)
+            t = non_indicent_edge_list[i]
+            e1 = t[1]
+            e2 = t[2]
+            u1 = get_station_index(e1.from.id)
+            v1 = get_station_index(e1.to.id)
+            u2 = get_station_index(e2.from.id)
+            v2 = get_station_index(e2.to.id)
             @constraint(model, sum(g[i, d] for d = 0:7) >= 1)
 
             # direction 0
@@ -483,16 +484,15 @@ function build_model!(model::JuMP.Model, transit_map::InputGraph,
 
     # bend cost constraints
     for i in 1:n_incident_edges
-        const t = indicent_edge_list[i]
-        const e1 = t[1]
-        const e2 = t[2]
-        const u = get_station_index(e1.from.id)
-        const v = get_station_index(e1.to.id)
-        const w = get_station_index(e2.to.id)
+        t = indicent_edge_list[i]
+        e1 = t[1]
+        e2 = t[2]
+        u = get_station_index(e1.from.id)
+        v = get_station_index(e1.to.id)
+        w = get_station_index(e2.to.id)
         @constraint(model, -1 * bc[i] <= d[u, v] - d[v, w] - 8 * bc_s1[i] + 8 * bc_s2[i])
         @constraint(model, bc[i] >= d[u, v] - d[v, w] - 8 * bc_s1[i] + 8 * bc_s2[i])
     end
 
     ModelVariables(x, y)
 end
-

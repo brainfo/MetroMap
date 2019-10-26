@@ -96,9 +96,9 @@ function sorted_outbound_edges(graph::TransitMap, node::EuclideanStation)
     sort(outbound_edges(graph, node), by = angle_deg)
 end
 
-type FaceNode
+struct FaceNode
     element::GenericEdge
-    prev::Nullable{FaceNode}
+    prev::Union{FaceNode,Nothing} ## allows setting it either to a value of type FaceNode or to nothing to indicate that there is no value.
 end
 
 # starts traversing the graph clockwise or counterclockwise until
@@ -156,11 +156,11 @@ end
 
 function find_deg2_sequences(transit_map::TransitMap, start_edge::ProcessedEdge, visited_edges::Set{ProcessedEdge})
     paths = Set()
-    const line = start_edge.line
+    line = start_edge.line ## not support const declaration on local variables
     current_edge = start_edge
     current_path = Vector{ProcessedEdge}([current_edge])
     while true
-        const out_edges = filter(x -> x.line == line && !(x in visited_edges),
+        out_edges = filter(x -> x.line == line && !(x in visited_edges),
                                 outbound_edges(transit_map, current_edge.to))
         is_deg2edge = degree(transit_map, current_edge.to) == 2
         if is_deg2edge
@@ -175,7 +175,7 @@ function find_deg2_sequences(transit_map::TransitMap, start_edge::ProcessedEdge,
                 push!(paths, current_path)
             end
             visited_edges = union(visited_edges, Set(current_path))
-            const new_paths = map(x -> find_deg2_sequences(transit_map, x, visited_edges), out_edges)
+            new_paths = map(x -> find_deg2_sequences(transit_map, x, visited_edges), out_edges)
             for np in new_paths
                 union!(paths, np)
             end
@@ -213,7 +213,7 @@ function reduce_transitmap(transit_map::InputGraph)
     new_transit_map = transit_map
     # for each line we remove degree 2 edges
     for line in transit_map.lines
-        const filter_fun = x -> length(inbound_edges(new_transit_map, x.from)) == 0 && x.line == line
+        filter_fun = x -> length(inbound_edges(new_transit_map, x.from)) == 0 && x.line == line
         start_edges = filter(filter_fun, edges(new_transit_map))
         if length(start_edges) == 0
             # we have a cycle
@@ -223,19 +223,19 @@ function reduce_transitmap(transit_map::InputGraph)
                 exit()
             end
         end
-        const start_edge = first(start_edges)
-        const deg2seqs = find_deg2_sequences(new_transit_map, start_edge, Set{ProcessedEdge}([]))
+        start_edge = first(start_edges)
+        deg2seqs = find_deg2_sequences(new_transit_map, start_edge, Set{ProcessedEdge}([]))
         for seq in deg2seqs
-            const first_edge = first(seq)
-            const last_edge = last(seq)
-            const from = first_edge.from
-            const to = last_edge.to
-            const dir = classify_direction_sector(angle_deg(Edge(from, to, line)))
-            const min_length = sum(map(x -> x.min_length, seq))
-            const new_edge = ProcessedEdge(from, last_edge.to, line, dir, min_length, false)
+            first_edge = first(seq)
+            last_edge = last(seq)
+            from = first_edge.from
+            to = last_edge.to
+            dir = classify_direction_sector(angle_deg(Edge(from, to, line)))
+            min_length = sum(map(x -> x.min_length, seq))
+            new_edge = ProcessedEdge(from, last_edge.to, line, dir, min_length, false)
             new_edges = filter(x -> !(x in seq), edges(new_transit_map))
             push!(new_edges, new_edge)
-            const new_nodes = unique(map(x -> x.from, new_edges) ∪ map(x -> x.to, new_edges))
+            new_nodes = unique(map(x -> x.from, new_edges) ∪ map(x -> x.to, new_edges))
             new_transit_map = InputGraph(new_nodes, new_edges, transit_map.lines)
         end
     end
@@ -248,14 +248,14 @@ function restore_transitmap(layout::TransitMapLayout, original_map::InputGraph)
     # sequentially add those edges
     # It was late ... TODO: refactor
     nodes = layout.stations
-    const layout_node_ids = Set(map(x -> x.id, nodes))
+    layout_node_ids = Set(map(x -> x.id, nodes))
     node_ids = layout_node_ids # remember what nodes we already added
     edges = layout.edges
     missing_edges = filter(x -> length(filter(y -> y.from.id == x.from.id &&
                                                 y.to.id == x.to.id && y.line.id == x.line.id, edges)) == 0, original_map.edges)
     while length(missing_edges) > 0
         # find an edge that starts at a layout node
-        const edge = first(filter(x -> x.from.id in layout_node_ids, missing_edges))
+        edge = first(filter(x -> x.from.id in layout_node_ids, missing_edges))
 
         # now find the path to a known edge along the same line
         path = [edge.to]
@@ -263,7 +263,7 @@ function restore_transitmap(layout::TransitMapLayout, original_map::InputGraph)
         node_found = false
         rm_edges = Set([edge])
         while !node_found
-            const next_edges = filter(x -> x.line.id == edge.line.id &&
+            next_edges = filter(x -> x.line.id == edge.line.id &&
                                         x.from.id == current_node.id, missing_edges)
             @assert length(next_edges) <= 1
             if length(next_edges) > 0
@@ -279,10 +279,10 @@ function restore_transitmap(layout::TransitMapLayout, original_map::InputGraph)
             end
         end
         filter!(x -> !(x in rm_edges), missing_edges)
-        const missing_nodes = filter(x -> !(x in node_ids), path)
+        missing_nodes = filter(x -> !(x in node_ids), path)
 
         # now add the missing nodes and edges in equi distance
-        const reduced_edge = first(filter(x -> x.from.id == edge.from.id && x.line.id == edge.line.id, layout.edges))
+        reduced_edge = first(filter(x -> x.from.id == edge.from.id && x.line.id == edge.line.id, layout.edges))
         start_coord = reduced_edge.from.coordinate
         end_coord = reduced_edge.to.coordinate
         edge_dist = [end_coord.x - start_coord.x, end_coord.y - start_coord.y] ./ (length(path) + 1)
