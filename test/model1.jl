@@ -1,3 +1,9 @@
+using MetroMapRuby
+using Test
+using JuMP
+using GLPKMathProgInterface
+using MathProgBase
+
 coord1 = EuclideanCoordinate(1, 2)
 coord2 = EuclideanCoordinate(1, 3)
 station1 = EuclideanStation(1, coord1, "test", false)
@@ -34,7 +40,7 @@ transit_map = InputGraph([station1, station2, station3, station4, station5,
 #   x   |   x
 # 6     5    8
 
-result = optimize(GLPKSolverMIP(msg_lev = 3), transit_map)
+result = MetroMapRuby.optimize(GLPKSolverMIP(msg_lev = 3), transit_map, false)
 
 @test result.stations[1].coordinate.y ≈ result.stations[2].coordinate.y
 @test result.stations[2].coordinate.y ≈ result.stations[3].coordinate.y

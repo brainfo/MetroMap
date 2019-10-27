@@ -1,8 +1,9 @@
-include("../src/MetroMapRuby.jl")
+#include("../src/MetroMapRuby.jl")
 using MetroMapRuby
 using Test
 using JuMP
 using GLPKMathProgInterface
+using MathProgBase
 
 tests = [
     "model1",

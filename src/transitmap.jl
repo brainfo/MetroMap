@@ -98,14 +98,14 @@ end
 
 struct FaceNode
     element::GenericEdge
-    prev::Union{FaceNode,Nothing} ## allows setting it either to a value of type FaceNode or to nothing to indicate that there is no value.
+    prev::Union{FaceNode,Nothing}
 end
 
 # starts traversing the graph clockwise or counterclockwise until
 # it finds the edge again
 function find_closest_face(graph::TransitMap, edge, counter_clockwise::Bool)
     queue = Queue(FaceNode)
-    enqueue!(queue, FaceNode(edge, Nullable{FaceNode}()))
+    enqueue!(queue, FaceNode(edge, Union{FaceNode,Nothing}()))
     visited_nodes = Set{GenericEdge}()
     face = Set{GenericEdge}()
     face_found = true

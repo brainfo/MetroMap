@@ -2,6 +2,7 @@ module MetroMapRuby
     using JuMP
     import MathOptInterface
     using DataStructures
+    import MathProgBase
 
     include("types.jl")
     include("transitmap.jl")

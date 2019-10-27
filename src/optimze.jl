@@ -1,4 +1,4 @@
-function optimize(solver::MathOptInterface.AbstractOptimizer,
+function optimize(solver::MathProgBase.SolverInterface.AbstractMathProgSolver,
                     transit_map::InputGraph, planarity_constraints::Integer,
                     elen_factor::Integer = 3,
                     bc_factor::Integer = 3,
